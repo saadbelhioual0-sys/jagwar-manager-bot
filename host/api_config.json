@@ -1,0 +1,6 @@
+{
+  "add_friend": "https://api-add-and-remove-alliff-v2.vercel.app/add/{uid}/{pwd}/{friend_id}",
+  "remove_friend": "https://api-add-and-remove-alliff-v2.vercel.app/remove/{uid}/{pwd}/{friend_id}",
+  "list_friends": "https://api-list-alliff-d5m-v2.vercel.app/{uid}/{pwd}",
+  "add_clan": "https://api-add-clan-alliff.vercel.app/ReqCLan/{uid}/{pwd}/{id_clan}"
+}
