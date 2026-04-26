@@ -116,7 +116,7 @@ CLEANUP_INTERVAL = 300
 
 command_stats = {}
 
-MK_API_URL = "http://alliff-d5m-sp-room.hf.space"
+MK_API_URL = "https://ragnar-mk-spm-production.up.railway.app/"
 GHOST_API_URL = "http://alliff-d5m-api-ghost.hf.space/api/ghost"
 LAG_GHOST_API_URL = "http://alliff-d5m-api-ghost.hf.space/api/ghost_attack"
 MSG_API_URL = "http://91.99.5.210:8005"
