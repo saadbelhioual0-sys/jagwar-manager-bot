@@ -120,7 +120,7 @@ MK_API_URL = "http://alliff-d5m-sp-room.hf.space"
 GHOST_API_URL = "http://alliff-d5m-api-ghost.hf.space/api/ghost"
 LAG_GHOST_API_URL = "http://alliff-d5m-api-ghost.hf.space/api/ghost_attack"
 MSG_API_URL = "http://91.99.5.210:8005"
-SPAM_API_URL = "http://alliff-d5m-spam.hf.space"
+SPAM_API_URL = "https://ragnar-spam-req-production.up.railway.app"
 
 EMOTE_DATA = None
 
