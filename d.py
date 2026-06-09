@@ -62,7 +62,7 @@ from KEys import MyMessage as MasryKEys
 from bate import Encrypt_ID, encrypt_api as bate_encrypt_api
 from xH import gJwt
 
-# ==================== سجلات ====================
+# ==================== LOGGING ====================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -74,7 +74,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-TELEGRAM_BOT_TOKEN = "8979263439:AAG3LauAX35hqAolBGPzNXXpfkm2CN7lvu4"
+TELEGRAM_BOT_TOKEN = "8661716124:AAGvWPm8jACf5b49TPYPZvGlKc4bbuKSfl0"
 TELEGRAM_CHAT_ID = "-1003925048342"
 
 
@@ -101,26 +101,22 @@ maintenance_mode = False
 restart_count = 0
 
 # ==================== MASRY SYSTEM VARIABLES ====================
-MaSrY_ToK = []  # قائمة الحسابات من MaSrY.txt
-JWT_ToKeNs = {}  # قاموس التوكنات لكل حساب
-Visit_Running = {}  # إدارة سبام الزيارات
-SpamReq_Running = {}  # إدارة سبام طلبات الصداقة
+MaSrY_ToK = []
+JWT_ToKeNs = {}
+Visit_Running = {}
+SpamReq_Running = {}
 
 # ==================== MASRY KEYS ====================
 MASRY_KEY = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
 MASRY_IV = bytes([54, 111, 121, 90, 68, 114, 50, 50, 69, 51, 121, 99, 104, 106, 77, 37])
 
 # ==================== NEW ADMIN SYSTEM VARIABLES ====================
-FORCE_SUB_CHANNEL_ID: int = -1003235249437
-FORCE_SUB_CHANNEL_LINK: str = "https://t.me/othmane8"
 shadowbanned_users: set = set()
-subscribed_cache: set = set()  # تخزين مؤقت للمستخدمين المشتركين لتحسين الأداء
-last_update_id = 0  # متغير لتتبع آخر تحديث تمت معالجته
 
 
 def restart_bot():
-    """إعادة تشغيل البوت"""
-    print("🔄 جاري إعادة تشغيل البوت...")
+    """Restart the bot"""
+    print("🔄 Restarting bot...")
     p = psutil.Process(os.getpid())
     for handler in p.open_files():
         try:
@@ -205,164 +201,24 @@ LIKE_API_URL = "https://xct-like-x-team.up.railway.app/like"
 
 # ==================== NEW ADMIN FUNCTIONS ====================
 
-def check_force_subscribe(user_id, chat_id):
-    """التحقق من اشتراك المستخدم في القناة الإجبارية مع نظام cache"""
-    if str(user_id) == ADMIN_ID:
-        return True
-    
-    # التحقق من cache أولاً لتحسين الأداء
-    if user_id in subscribed_cache:
-        return True
-    
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getChatMember"
-        params = {"chat_id": FORCE_SUB_CHANNEL_ID, "user_id": user_id}
-        response = requests.get(url, params=params, timeout=10)
-        data = response.json()
-        
-        if data.get("ok"):
-            status = data.get("result", {}).get("status", "")
-            if status in ["member", "administrator", "creator"]:
-                subscribed_cache.add(user_id)  # حفظ في cache
-                return True
-    except Exception as e:
-        logger.error(f"Force subscribe check error: {e}")
-    
-    return False
-
-def send_force_sub_message(chat_id, user_name, user_id, reply_to_message_id=None):
-    """إرسال رسالة الاشتراك الإجباري مع أزرار محسنة"""
-    
-    # إنشاء زر مضمن (Inline Keyboard)
-    keyboard = {
-        "inline_keyboard": [
-            [
-                {
-                    "text": "📢 اضغط للاشتراك في القناة",
-                    "url": FORCE_SUB_CHANNEL_LINK
-                }
-            ],
-            [
-                {
-                    "text": "🔄 تحقق من الاشتراك",
-                    "callback_data": f"check_sub_{user_id}"
-                }
-            ]
-        ]
-    }
-    
-    message = (
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"⚠️ <b>عذراً {user_name}</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "يجب عليك الاشتراك في القناة أولاً\n"
-        "لاستخدام البوت\n\n"
-        "⟨ ⟨ ⟨ @JAGWAR_FF1 ⟩ ⟩ ⟩\n"
-        "━━━━━━━━━━━━━━━━━━━━━━"
-    )
-    
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    data = {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "HTML",
-        "reply_markup": json.dumps(keyboard)
-    }
-    
-    if reply_to_message_id:
-        data["reply_to_message_id"] = reply_to_message_id
-    
-    try:
-        response = requests.post(url, data=data, timeout=10)
-        return response.json()
-    except Exception as e:
-        logger.error(f"Error sending force sub message: {e}")
-        return None
-
-def answer_callback_query(callback_query_id, text, show_alert=False):
-    """الرد على استفسار الزر"""
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery"
-    data = {
-        "callback_query_id": callback_query_id,
-        "text": text,
-        "show_alert": show_alert
-    }
-    try:
-        requests.post(url, data=data, timeout=10)
-    except Exception as e:
-        logger.error(f"Error answering callback: {e}")
-
-def edit_telegram_message(chat_id, message_id, new_text, parse_mode="HTML", reply_markup=None):
-    """تعديل رسالة موجودة في تيليجرام مع دعم الأزرار"""
-    try:
-        signature = "\n\n────────────────────\n"
-        signature += "👑 Developer: JAGWAR KING"
-        
-        new_text_with_signature = new_text + signature
-        
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText"
-        data = {
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "text": new_text_with_signature,
-            "parse_mode": parse_mode
-        }
-        
-        if reply_markup:
-            data["reply_markup"] = json.dumps(reply_markup)
-        
-        response = requests.post(url, data=data, timeout=10)
-        return response.json()
-    except Exception as e:
-        logger.error(f"⚠️ Error editing Telegram message: {e}")
-
-def process_callback_query(callback_data, chat_id, message_id, user_id, callback_query_id):
-    """معالجة الضغط على زر تحقق من الاشتراك"""
-    if callback_data.startswith("check_sub_"):
-        target_user_id = int(callback_data.split("_")[2])
-        
-        if user_id != target_user_id:
-            answer_callback_query(callback_query_id, "⚠️ هذا الزر ليس لك!", show_alert=True)
-            return
-        
-        # التحقق من الاشتراك
-        is_subscribed = check_force_subscribe(user_id, chat_id)
-        
-        if is_subscribed:
-            # تعديل الرسالة لتأكيد الاشتراك
-            success_message = (
-                "━━━━━━━━━━━━━━━━━━━━━━\n"
-                "✅ <b>تم التحقق بنجاح!</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                "يمكنك الآن استخدام البوت\n"
-                "أعد إرسال الأمر الذي تريده\n\n"
-                "⟨ ⟨ ⟨ @JAGWAR_FF1 ⟩ ⟩ ⟩\n"
-                "━━━━━━━━━━━━━━━━━━━━━━"
-            )
-            edit_telegram_message(chat_id, message_id, success_message)
-            answer_callback_query(callback_query_id, "✅ تم التحقق! يمكنك الآن استخدام البوت", show_alert=False)
-        else:
-            # لم يشترك بعد
-            answer_callback_query(callback_query_id, "❌ لم تشترك في القناة بعد! اشترك ثم اضغط تحقق", show_alert=True)
-
 def add_shadowban(user_id):
-    """إضافة مستخدم إلى قائمة الحظر الخفي"""
+    """Add user to shadowban list"""
     global shadowbanned_users
     shadowbanned_users.add(int(user_id))
     logger.info(f"👻 Shadowbanned user: {user_id}")
 
 def remove_shadowban(user_id):
-    """إزالة مستخدم من قائمة الحظر الخفي"""
+    """Remove user from shadowban list"""
     global shadowbanned_users
     shadowbanned_users.discard(int(user_id))
     logger.info(f"👻 Unshadowbanned user: {user_id}")
 
 def is_shadowbanned(user_id):
-    """التحقق من وجود المستخدم في قائمة الحظر الخفي"""
+    """Check if user is shadowbanned"""
     return int(user_id) in shadowbanned_users
 
 def delete_message(chat_id, message_id):
-    """حذف رسالة واحدة"""
+    """Delete a single message"""
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteMessage"
         data = {"chat_id": chat_id, "message_id": message_id}
@@ -372,7 +228,7 @@ def delete_message(chat_id, message_id):
         return False
 
 def delete_messages_bulk(chat_id, message_ids):
-    """حذف رسائل متعددة من المجموعة"""
+    """Delete multiple messages from a group"""
     deleted = 0
     for msg_id in message_ids:
         try:
@@ -383,7 +239,7 @@ def delete_messages_bulk(chat_id, message_ids):
     return deleted
 
 def set_group_permissions(chat_id, locked=True):
-    """تجميد أو فك تجميد المجموعة"""
+    """Lock or unlock a group"""
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setChatPermissions"
         
@@ -418,7 +274,7 @@ def set_group_permissions(chat_id, locked=True):
         return False
 
 def ban_chat_member(chat_id, user_id):
-    """حظر عضو من المجموعة"""
+    """Ban a member from the group"""
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/banChatMember"
         data = {"chat_id": chat_id, "user_id": user_id}
@@ -429,7 +285,7 @@ def ban_chat_member(chat_id, user_id):
         return False
 
 def unban_chat_member(chat_id, user_id):
-    """إلغاء حظر عضو"""
+    """Unban a member"""
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/unbanChatMember"
         data = {"chat_id": chat_id, "user_id": user_id, "only_if_banned": True}
@@ -440,7 +296,7 @@ def unban_chat_member(chat_id, user_id):
         return False
 
 def restrict_chat_member(chat_id, user_id, can_send_messages=True):
-    """تقييد عضو (كتم/فك كتم)"""
+    """Restrict a member (mute/unmute)"""
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/restrictChatMember"
         permissions = {
@@ -461,7 +317,7 @@ def restrict_chat_member(chat_id, user_id, can_send_messages=True):
         return False
 
 def get_server_stats():
-    """جلب إحصائيات السيرفر"""
+    """Get server statistics"""
     stats = {}
     
     stats['os'] = f"{platform.system()} {platform.release()}"
@@ -489,7 +345,7 @@ def get_server_stats():
     return stats
 
 def format_server_stats(stats):
-    """تنسيق إحصائيات السيرفر بنمط البوت"""
+    """Format server statistics in bot style"""
     def progress_bar(value, width=10):
         filled = int((value / 100) * width)
         return f"[{'█' * filled}{'░' * (width - filled)}] {value:.1f}%"
@@ -510,7 +366,7 @@ def format_server_stats(stats):
     )
 
 def send_admin_message(message, chat_id=None, reply_to_message_id=None, parse_mode="HTML"):
-    """إرسال رسالة للأدمن بدون تذييل"""
+    """Send a message to admin without signature"""
     try:
         if chat_id is None:
             chat_id = TELEGRAM_CHAT_ID
@@ -532,7 +388,7 @@ def send_admin_message(message, chat_id=None, reply_to_message_id=None, parse_mo
         return None
 
 def show_admin_menu(chat_id, user_id):
-    """قائمة الأوامر الإدارية (تظهر فقط للأدمن في الخاص)"""
+    """Admin commands menu (only shown to admin in private chat)"""
     if str(user_id) != ADMIN_ID:
         return None
     
@@ -564,19 +420,19 @@ def show_admin_menu(chat_id, user_id):
 # ==================== MASRY ENCRYPTION FUNCTIONS ====================
 
 def EnC_AEs(HeX):
-    """تشفير AES للبيانات"""
+    """AES encryption for data"""
     cipher = AES.new(MASRY_KEY, AES.MODE_CBC, MASRY_IV)
     return cipher.encrypt(pad(bytes.fromhex(HeX), AES.block_size)).hex()
 
 def encrypt_api(plain_text):
-    """تشفير API باستخدام AES-CBC"""
+    """Encrypt API using AES-CBC"""
     plain_text = bytes.fromhex(plain_text)
     cipher = AES.new(ENCRYPTION_KEY, AES.MODE_CBC, ENCRYPTION_IV)
     cipher_text = cipher.encrypt(pad(plain_text, AES.block_size))
     return cipher_text.hex()
 
 def encrypt_id(number):
-    """تشفير ID إلى صيغة Varint hex"""
+    """Encrypt ID to Varint hex format"""
     number = int(number)
     encoded_bytes = []
     while True:
@@ -592,10 +448,10 @@ def encrypt_id(number):
 # ==================== MASRY LOAD FUNCTIONS ====================
 
 def load_masry_tokens(filepath="MaSrY.txt"):
-    """تحميل الحسابات من ملف MaSrY.txt"""
+    """Load accounts from MaSrY.txt file"""
     global MaSrY_ToK
     if not os.path.exists(filepath):
-        logger.error(f"⚠️ ملف {filepath} غير موجود! لن يتم تحميل أي حسابات.")
+        logger.error(f"⚠️ File {filepath} not found! No accounts loaded.")
         return False
     
     loaded = []
@@ -611,11 +467,11 @@ def load_masry_tokens(filepath="MaSrY.txt"):
                 loaded.append((line.strip(), ''))
     
     MaSrY_ToK = loaded
-    logger.info(f"✅ تم تحميل {len(MaSrY_ToK)} حساب من {filepath}")
+    logger.info(f"✅ Loaded {len(MaSrY_ToK)} accounts from {filepath}")
     return True
 
 def masry_update_jwt():
-    """تحديث JWT لجميع الحسابات بشكل دوري"""
+    """Periodically update JWT for all accounts"""
     global JWT_ToKeNs
     while True:
         for uId, PaSs in MaSrY_ToK:
@@ -623,15 +479,15 @@ def masry_update_jwt():
                 token = gJwt(uId, PaSs)
                 if token:
                     JWT_ToKeNs[uId] = token
-                    logger.info(f"🎫 تم تحديث JWT للحساب {uId}")
+                    logger.info(f"🎫 Updated JWT for account {uId}")
             except Exception as e:
-                logger.error(f"❌ فشل تحديث JWT للحساب {uId}: {e}")
+                logger.error(f"❌ Failed to update JWT for account {uId}: {e}")
         time.sleep(3600)
 
 # ==================== MASRY SPAM FUNCTIONS ====================
 
 def masry_send_visit(target_uid, token):
-    """إرسال طلب زيارة واحد عبر HTTP باستخدام التوكن"""
+    """Send one visit request via HTTP using token"""
     try:
         enc_target = encrypt_id(target_uid)
         payload = f"08{enc_target}1801"
@@ -658,7 +514,7 @@ def masry_send_visit(target_uid, token):
         return None
 
 def masry_send_friend_spam(target_uid, token):
-    """إرسال طلب صداقة واحد عبر HTTP باستخدام التوكن"""
+    """Send one friend request via HTTP using token"""
     try:
         enc_target = encrypt_id(target_uid)
         payload = f"08a7c4839f1e10{enc_target}1801"
@@ -684,10 +540,10 @@ def masry_send_friend_spam(target_uid, token):
     except Exception as e:
         return None
 
-# ==================== VISIT SPAM FUNCTIONS (MODIFIED) ====================
+# ==================== VISIT SPAM FUNCTIONS ====================
 
 def run_visit_spam(target_uid, stop_event, chat_id, user_message_id):
-    """تشغيل حلقة سبام الزيارات"""
+    """Run visit spam loop"""
     while not stop_event.is_set():
         for uid, _ in MaSrY_ToK:
             if stop_event.is_set():
@@ -709,7 +565,7 @@ def run_visit_spam(target_uid, stop_event, chat_id, user_message_id):
             del _visit_tasks[target_uid]
 
 def start_visit_spam(target_uid, chat_id=None, user_message_id=None):
-    """بدء سبام الزيارات"""
+    """Start visit spam"""
     global _visit_tasks
     target_uid_str = str(target_uid)
     
@@ -719,7 +575,7 @@ def start_visit_spam(target_uid, chat_id=None, user_message_id=None):
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"⚠️ <b>NO ACCOUNTS</b>\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"Please add accounts to <code>MaSrY.txt</code> file\n"
+                f"Please add accounts to <code>accounts.txt</code> file\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━",
                 chat_id=chat_id,
                 reply_to_message_id=user_message_id
@@ -749,7 +605,6 @@ def start_visit_spam(target_uid, chat_id=None, user_message_id=None):
         _visit_tasks[target_uid_str] = (spam_thread, stop_event)
         spam_thread.start()
     
-    # إرسال رسالة بدء السبام فقط
     if chat_id and user_message_id:
         send_telegram_message(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -767,7 +622,7 @@ def start_visit_spam(target_uid, chat_id=None, user_message_id=None):
     return True
 
 def stop_visit_spam(target_uid, chat_id=None, user_message_id=None):
-    """إيقاف سبام الزيارات"""
+    """Stop visit spam"""
     global _visit_tasks
     target_uid_str = str(target_uid)
     
@@ -803,10 +658,10 @@ def stop_visit_spam(target_uid, chat_id=None, user_message_id=None):
     logger.info(f"👁️ Visit spam stopped on {target_uid_str}")
     return True
 
-# ==================== FRIEND SPAM FUNCTIONS (MODIFIED) ====================
+# ==================== FRIEND SPAM FUNCTIONS ====================
 
 def run_friend_spam(target_uid, stop_event, chat_id, user_message_id):
-    """تشغيل حلقة سبام طلبات الصداقة"""
+    """Run friend request spam loop"""
     while not stop_event.is_set():
         for uid, _ in MaSrY_ToK:
             if stop_event.is_set():
@@ -828,7 +683,7 @@ def run_friend_spam(target_uid, stop_event, chat_id, user_message_id):
             del _friend_spam_tasks[target_uid]
 
 def start_friend_spam(target_uid, chat_id=None, user_message_id=None):
-    """بدء سبام طلبات الصداقة"""
+    """Start friend request spam"""
     global _friend_spam_tasks
     target_uid_str = str(target_uid)
     
@@ -838,7 +693,7 @@ def start_friend_spam(target_uid, chat_id=None, user_message_id=None):
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"⚠️ <b>NO ACCOUNTS</b>\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                f"Please add accounts to <code>MaSrY.txt</code> file\n"
+                f"Please add accounts to <code>accounts.txt</code> file\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━",
                 chat_id=chat_id,
                 reply_to_message_id=user_message_id
@@ -868,7 +723,6 @@ def start_friend_spam(target_uid, chat_id=None, user_message_id=None):
         _friend_spam_tasks[target_uid_str] = (spam_thread, stop_event)
         spam_thread.start()
     
-    # إرسال رسالة بدء السبام فقط
     if chat_id and user_message_id:
         send_telegram_message(
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -886,7 +740,7 @@ def start_friend_spam(target_uid, chat_id=None, user_message_id=None):
     return True
 
 def stop_friend_spam(target_uid, chat_id=None, user_message_id=None):
-    """إيقاف سبام طلبات الصداقة"""
+    """Stop friend request spam"""
     global _friend_spam_tasks
     target_uid_str = str(target_uid)
     
@@ -923,7 +777,7 @@ def stop_friend_spam(target_uid, chat_id=None, user_message_id=None):
     return True
 
 def get_masry_spam_status():
-    """الحصول على حالة جميع سبامات Masry النشطة"""
+    """Get status of all active Masry spams"""
     with _visit_tasks_lock:
         visit_count = len(_visit_tasks)
         visit_targets = list(_visit_tasks.keys())
@@ -942,7 +796,7 @@ def get_masry_spam_status():
     }
 
 def stop_all_visit_spam(chat_id=None, user_message_id=None):
-    """إيقاف جميع سبامات الزيارات"""
+    """Stop all visit spams"""
     global _visit_tasks
     with _visit_tasks_lock:
         if not _visit_tasks:
@@ -975,7 +829,7 @@ def stop_all_visit_spam(chat_id=None, user_message_id=None):
     return count
 
 def stop_all_friend_spam(chat_id=None, user_message_id=None):
-    """إيقاف جميع سبامات طلبات الصداقة"""
+    """Stop all friend request spams"""
     global _friend_spam_tasks
     with _friend_spam_tasks_lock:
         if not _friend_spam_tasks:
@@ -1010,7 +864,7 @@ def stop_all_friend_spam(chat_id=None, user_message_id=None):
 # ==================== GHOST SYSTEM FUNCTIONS ====================
 
 def init_account_queue():
-    """تهيئة قائمة الحسابات المتاحة لـ Ghost"""
+    """Initialize available accounts queue for Ghost"""
     global account_queue
     with account_queue_lock:
         with command_lock:
@@ -1021,7 +875,7 @@ def init_account_queue():
             logger.info(f"👻 Ghost Queue: {len(account_queue)} clients available")
 
 def get_next_available_ghost_client():
-    """الحصول على حساب متاح لتنفيذ Ghost"""
+    """Get an available account for Ghost execution"""
     with account_queue_lock:
         with account_busy_lock:
             available_clients = []
@@ -1043,18 +897,18 @@ def get_next_available_ghost_client():
             return client
 
 def mark_account_busy_for_ghost(account_id):
-    """تحديد حساب كمشغول لـ Ghost"""
+    """Mark an account as busy for Ghost"""
     with account_busy_lock:
         account_busy_for_commands[account_id] = datetime.now()
 
 def mark_account_free_for_ghost(account_id):
-    """تحرير حساب بعد انتهاء Ghost"""
+    """Free an account after Ghost execution"""
     with account_busy_lock:
         if account_id in account_busy_for_commands:
             del account_busy_for_commands[account_id]
 
 def execute_ghost_command_new(client, teamcode, name):
-    """تنفيذ أمر Ghost عن طريق السوكيت"""
+    """Execute Ghost command via socket"""
     success = False
     try:
         if client.socket_client and client.key and client.iv:
@@ -1116,7 +970,7 @@ def execute_ghost_command_new(client, teamcode, name):
     return success
 
 def format_ghost_response(team_code, name, success_count, total_clients):
-    """تنسيق رسالة الرد بنفس ستايل البوت"""
+    """Format ghost response message"""
     if success_count > 0:
         message = (
             "━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -1141,7 +995,7 @@ def format_ghost_response(team_code, name, success_count, total_clients):
     return message
 
 def send_ghost_command_new(team_code, name, chat_id, user_message_id=None):
-    """إرسال أمر Ghost جديد"""
+    """Send new Ghost command"""
     try:
         if not ChEck_Commande(team_code):
             send_telegram_message(
@@ -1222,7 +1076,7 @@ def send_ghost_command_new(team_code, name, chat_id, user_message_id=None):
 # ==================== LIKES SYSTEM FUNCTIONS ====================
 
 def format_like_response(data: dict) -> str:
-    """تنسيق رد API اللايكات بنفس ستايل البوت"""
+    """Format like API response in bot style"""
     try:
         status = data.get("status")
         if status != 1:
@@ -1252,7 +1106,7 @@ def format_like_response(data: dict) -> str:
         return "━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>ERROR</b>\n━━━━━━━━━━━━━━━━━━━━━━\n\nFailed to process server response."
 
 def send_likes(uid: str, chat_id: int, user_message_id: int = None):
-    """إرسال طلب لايكات إلى API"""
+    """Send likes request to API"""
     try:
         response = requests.get(LIKE_API_URL, params={"uid": uid}, timeout=30)
         
@@ -1297,7 +1151,7 @@ def send_likes(uid: str, chat_id: int, user_message_id: int = None):
 # ==================== PROTOBUF FUNCTIONS ====================
 
 def encode_varint(number):
-    """تشفير الرقم إلى Varint"""
+    """Encode number to Varint"""
     if number < 0:
         raise ValueError("Number must be non-negative")
     
@@ -1313,18 +1167,18 @@ def encode_varint(number):
     return bytes(encoded_bytes)
 
 def create_varint_field(field_number, value):
-    """إنشاء حقل Varint في Protobuf"""
+    """Create Varint field in Protobuf"""
     field_header = (field_number << 3) | 0
     return encode_varint(field_header) + encode_varint(value)
 
 def create_length_delimited_field(field_number, value):
-    """إنشاء حقل Length Delimited في Protobuf"""
+    """Create Length Delimited field in Protobuf"""
     field_header = (field_number << 3) | 2
     encoded_value = value.encode() if isinstance(value, str) else value
     return encode_varint(field_header) + encode_varint(len(encoded_value)) + encoded_value
 
 def create_protobuf_packet(fields):
-    """إنشاء حزمة Protobuf كاملة"""
+    """Create complete Protobuf packet"""
     packet = bytearray()
     
     for field, value in fields.items():
@@ -1339,7 +1193,7 @@ def create_protobuf_packet(fields):
     return packet
 
 def decrypt_id(encoded_bytes):
-    """فك تشفير ID من Varint"""
+    """Decrypt ID from Varint"""
     encoded_bytes = bytes.fromhex(encoded_bytes)
     number = 0
     shift = 0
@@ -1354,14 +1208,14 @@ def decrypt_id(encoded_bytes):
 # ==================== JWT FUNCTIONS ====================
 
 def decrypt_api(cipher_text):
-    """فك تشفير API"""
+    """Decrypt API"""
     cipher_text_bytes = bytes.fromhex(cipher_text)
     cipher = AES.new(ENCRYPTION_KEY, AES.MODE_CBC, ENCRYPTION_IV)
     plain_text = unpad(cipher.decrypt(cipher_text_bytes), AES.block_size)
     return plain_text.hex()
 
 def token_maker(old_access_token, new_access_token, old_open_id, new_open_id, uid):
-    """إنشاء JWT Token جديد"""
+    """Create new JWT Token"""
     now = datetime.now()
     now = str(now)[:len(str(now)) - 7]
     
@@ -1412,7 +1266,7 @@ def token_maker(old_access_token, new_access_token, old_open_id, new_open_id, ui
         return False
 
 def fetch_jwt_token(max_retries=10, retry_delay=5):
-    """جلب JWT Token جديد من Garena مع عدة محاولات"""
+    """Fetch new JWT Token from Garena with multiple attempts"""
     for attempt in range(max_retries):
         try:
             uid = "5007239992"
@@ -1465,7 +1319,7 @@ def fetch_jwt_token(max_retries=10, retry_delay=5):
     return None
 
 def update_jwt_periodically():
-    """تحديث JWT Token كل ساعة"""
+    """Update JWT Token every hour"""
     global JWT_TOKEN
     while True:
         time.sleep(3600)
@@ -1487,7 +1341,7 @@ def update_jwt_periodically():
 # ==================== FRIEND SYSTEM FUNCTIONS ====================
 
 def send_friend_request(player_id):
-    """إرسال طلب صداقة"""
+    """Send friend request"""
     global JWT_TOKEN
     
     if not JWT_TOKEN:
@@ -1531,7 +1385,7 @@ def send_friend_request(player_id):
         return f"❌ An error occurred: {str(e)}"
 
 def remove_friend(player_id):
-    """إزالة صديق من القائمة"""
+    """Remove friend from list"""
     global JWT_TOKEN
     
     if not JWT_TOKEN:
@@ -1573,9 +1427,9 @@ def remove_friend(player_id):
         return f"❌ Error occurred: {str(e)}"
 
 def get_player_info(uid):
-    """جلب معلومات اللاعب من API خارجي"""
+    """Get player info from external API"""
     try:
-        response = requests.get(f"https://otman-info.vercel.app/player-info?uid={uid}", timeout=10)
+        response = requests.get(f"https://jagwar-info.vercel.app/player-info?uid={uid}", timeout=10)
         data = response.json()
         info = data.get("basicInfo", {})
         name = info.get("nickname", "Unknown")
@@ -1589,7 +1443,7 @@ def get_player_info(uid):
 # ==================== DETAILED PLAYER INFO FUNCTIONS ====================
 
 def format_player_info_detailed(data: dict) -> str:
-    """تنسيق معلومات اللاعب بتفصيل بنفس ستايل البوت"""
+    """Format detailed player information in bot style"""
     info = data.get("basicInfo", {})
     clan = data.get("clanBasicInfo", {})
     captain = data.get("captainBasicInfo", {})
@@ -1644,7 +1498,7 @@ def format_player_info_detailed(data: dict) -> str:
     return formatted_text
 
 def fetch_player_image(uid: str):
-    """جلب صورة اللاعب من API خارجي"""
+    """Fetch player image from external API"""
     try:
         image_url = f"https://jagwar-outfit.vercel.app/outfit-image?uid={uid}&key=JOT-TEAM"
         response = requests.get(image_url, timeout=20)
@@ -1657,9 +1511,9 @@ def fetch_player_image(uid: str):
         return False, None
 
 def send_player_info_with_image(player_id, chat_id, user_message_id=None):
-    """إرسال معلومات اللاعب مع الصورة إلى تيليجرام"""
+    """Send player information with image to Telegram"""
     try:
-        info_url = f"https://otman-info.vercel.app/player-info?uid={player_id}"
+        info_url = f"https://jagwar-info.vercel.app/player-info?uid={player_id}"
         info_response = requests.get(info_url, timeout=15)
         
         if info_response.status_code != 200:
@@ -1723,7 +1577,7 @@ def send_player_info_with_image(player_id, chat_id, user_message_id=None):
         )
 
 def load_users():
-    """تحميل بيانات المستخدمين من ملف JSON"""
+    """Load user data from JSON file"""
     global users
     if os.path.exists(USERS_FILE):
         try:
@@ -1738,12 +1592,12 @@ def load_users():
     return users
 
 def save_users():
-    """حفظ بيانات المستخدمين إلى ملف JSON"""
+    """Save user data to JSON file"""
     with open(USERS_FILE, "w", encoding="utf-8") as f:
         json.dump(users, f, ensure_ascii=False, indent=4)
 
 def load_maintenance_status():
-    """تحميل حالة الصيانة"""
+    """Load maintenance status"""
     global maintenance_mode
     if os.path.exists(MAINTENANCE_FILE):
         try:
@@ -1757,14 +1611,14 @@ def load_maintenance_status():
     return maintenance_mode
 
 def save_maintenance_status(status):
-    """حفظ حالة الصيانة"""
+    """Save maintenance status"""
     global maintenance_mode
     maintenance_mode = status
     with open(MAINTENANCE_FILE, "w", encoding="utf-8") as f:
         json.dump({"maintenance_mode": status}, f)
 
 def get_total_users_count():
-    """الحصول على العدد الإجمالي للمستخدمين المضافين"""
+    """Get total number of added users"""
     count = 0
     for uid, data in users.items():
         if isinstance(data, dict) and "name" in data and "expiry" in data:
@@ -1772,7 +1626,7 @@ def get_total_users_count():
     return count
 
 def format_remaining_time(expiry_time):
-    """تنسيق الوقت المتبقي"""
+    """Format remaining time"""
     remaining = int(expiry_time - time.time())
     if remaining <= 0:
         return "⛔ Expired"
@@ -1794,7 +1648,7 @@ def format_remaining_time(expiry_time):
     return " ".join(parts)
 
 def remove_expired_users():
-    """إزالة المستخدمين منتهية الصلاحية تلقائياً"""
+    """Automatically remove expired users"""
     global users
     now = time.time()
     expired = [uid for uid, data in users.items() if isinstance(data, dict) and data.get("expiry", 0) <= now]
@@ -1810,13 +1664,13 @@ def remove_expired_users():
         logger.info(f"🗑️ Removed {len(expired)} expired users")
 
 def check_expired_users_periodically():
-    """فحص المستخدمين منتهية الصلاحية بشكل دوري"""
+    """Periodically check for expired users"""
     while True:
         remove_expired_users()
         time.sleep(60)
 
 def reset_daily_adds():
-    """إعادة تعيين عدد الإضافات اليومية"""
+    """Reset daily add count"""
     global users
     now = datetime.now()
     for tele_id in list(users.keys()):
@@ -1828,13 +1682,13 @@ def reset_daily_adds():
     save_users()
 
 def daily_reset_timer():
-    """مؤقت إعادة التعيين اليومي"""
+    """Daily reset timer"""
     while True:
         reset_daily_adds()
         time.sleep(3600)
 
 def send_message_to_all_groups(message_text):
-    """إرسال رسالة إلى جميع المجموعات المفعلة"""
+    """Send message to all active groups"""
     groups_data = load_groups_data()
     for chat_id in groups_data.keys():
         try:
@@ -1846,7 +1700,7 @@ def send_message_to_all_groups(message_text):
 # ==================== ORIGINAL FUNCTIONS ====================
 
 def load_accounts():
-    """تحميل الحسابات من ملف JSON"""
+    """Load accounts from JSON file"""
     global accounts_loaded
     
     try:
@@ -1867,7 +1721,7 @@ def load_accounts():
         return []
 
 def get_next_account():
-    """الحصول على الحساب التالي في الدور"""
+    """Get next account in rotation"""
     global account_index
     if not accounts_loaded:
         accounts_loaded = load_accounts()
@@ -1880,7 +1734,7 @@ def get_next_account():
     return account
 
 def check_connection_health():
-    """فحص صحة الاتصال وإعادة التشغيل إذا لزم الأمر"""
+    """Check connection health and restart if needed"""
     global last_connection_time, restart_count, bot_connected
     
     if not bot_connected:
@@ -1900,13 +1754,13 @@ def check_connection_health():
         restart_count = 0
 
 def update_connection_time():
-    """تحديث وقت آخر نشاط للاتصال"""
+    """Update last connection activity time"""
     global last_connection_time, bot_connected
     last_connection_time = time.time()
     bot_connected = True
 
 def load_groups_data():
-    """تحميل بيانات المجموعات من ملف JSON"""
+    """Load group data from JSON file"""
     try:
         if os.path.exists(GROUPS_FILE):
             with open(GROUPS_FILE, 'r', encoding='utf-8') as f:
@@ -1917,7 +1771,7 @@ def load_groups_data():
         return {}
 
 def save_groups_data(groups_data):
-    """حفظ بيانات المجموعات إلى ملف JSON"""
+    """Save group data to JSON file"""
     try:
         with open(GROUPS_FILE, 'w', encoding='utf-8') as f:
             json.dump(groups_data, f, ensure_ascii=False, indent=4)
@@ -1927,7 +1781,7 @@ def save_groups_data(groups_data):
         return False
 
 def is_group_active(chat_id):
-    """التحقق مما إذا كانت المجموعة نشطة وصالحة"""
+    """Check if group is active and valid"""
     groups_data = load_groups_data()
     chat_id_str = str(chat_id)
     
@@ -1944,7 +1798,7 @@ def is_group_active(chat_id):
     return False
 
 def activate_group(chat_id, days, admin_id):
-    """تفعيل مجموعة جديدة أو تجديد مجموعة موجودة"""
+    """Activate a new group or renew an existing one"""
     if str(admin_id) != ADMIN_ID:
         return False, "❌ You don't have permission to activate the bot"
     
@@ -1966,7 +1820,7 @@ def activate_group(chat_id, days, admin_id):
         return False, "❌ Error saving data"
 
 def deactivate_group(chat_id, admin_id):
-    """إلغاء تفعيل مجموعة"""
+    """Deactivate a group"""
     if str(admin_id) != ADMIN_ID:
         return False, "❌ You don't have permission to deactivate"
     
@@ -1983,7 +1837,7 @@ def deactivate_group(chat_id, admin_id):
         return False, "❌ Group is not activated"
 
 def get_group_info(chat_id):
-    """الحصول على معلومات المجموعة"""
+    """Get group information"""
     groups_data = load_groups_data()
     chat_id_str = str(chat_id)
     
@@ -2001,7 +1855,7 @@ def get_group_info(chat_id):
         return "❌ Group not activated"
 
 def get_all_groups():
-    """الحصول على قائمة بجميع المجموعات المفعلة"""
+    """Get list of all active groups"""
     groups_data = load_groups_data()
     if not groups_data:
         return "❌ No active groups"
@@ -2033,7 +1887,7 @@ def get_all_groups():
     return result
 
 def dec_to_hex(ask):
-    """تحويل من decimal إلى hex"""
+    """Convert decimal to hex"""
     ask_result = hex(ask)
     final_result = str(ask_result)[2:]
     if len(final_result) == 1:
@@ -2043,7 +1897,7 @@ def dec_to_hex(ask):
         return final_result
 
 def send_telegram_message(message, parse_mode="HTML", chat_id=None, message_id=None, no_signature=False, reply_to_message_id=None):
-    """إرسال رسالة إلى تيليجرام مع إمكانية الرد"""
+    """Send message to Telegram with reply capability"""
     try:
         if chat_id is None:
             chat_id = TELEGRAM_CHAT_ID
@@ -2071,7 +1925,7 @@ def send_telegram_message(message, parse_mode="HTML", chat_id=None, message_id=N
         logger.error(f"⚠️ Error sending Telegram message: {e}")
 
 def delete_telegram_message(chat_id, message_id):
-    """حذف رسالة من تيليجرام"""
+    """Delete a Telegram message"""
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteMessage"
         data = {
@@ -2084,7 +1938,7 @@ def delete_telegram_message(chat_id, message_id):
         logger.error(f"⚠️ Error deleting Telegram message: {e}")
 
 def send_private_message(user_id, message, parse_mode="HTML"):
-    """إرسال رسالة خاصة إلى مستخدم"""
+    """Send private message to user"""
     try:
         signature = "\n\n────────────────────\n"
         signature += "👑 Developer: JAGWAR KING"
@@ -2238,7 +2092,7 @@ def parse_results(parsed_results):
 # ==================== SPAM CORE FUNCTIONS ====================
 
 def create_spam_room_packet(key, iv):
-    """إنشاء حزمة فتح غرفة سبام"""
+    """Create spam room packet"""
     try:
         fields = {
             1: 2,
@@ -2291,7 +2145,7 @@ def create_spam_room_packet(key, iv):
         return None
 
 def create_spam_invite_packet(key, iv, target_uid):
-    """إنشاء حزمة دعوة سبام"""
+    """Create spam invite packet"""
     try:
         fields = {
             1: 22,
@@ -2320,7 +2174,7 @@ def create_spam_invite_packet(key, iv, target_uid):
         return None
 
 def spam_attack_loop(target_uid, stop_event, requester_id, requester_name):
-    """حلقة هجوم السبام الرئيسية"""
+    """Main spam attack loop"""
     while not stop_event.is_set():
         try:
             with command_lock:
@@ -2359,7 +2213,7 @@ def spam_attack_loop(target_uid, stop_event, requester_id, requester_name):
             stop_event.wait(1)
 
 def start_spam(target_uid, requester_id, requester_name, chat_id=None, user_message_id=None):
-    """بدء هجوم سبام على هدف"""
+    """Start spam attack on target"""
     global _spam_tasks
     
     target_uid_str = str(target_uid)
@@ -2401,7 +2255,7 @@ def start_spam(target_uid, requester_id, requester_name, chat_id=None, user_mess
     return True
 
 def stop_spam(target_uid, requester_id, chat_id=None, user_message_id=None):
-    """إيقاف هجوم سبام على هدف"""
+    """Stop spam attack on target"""
     global _spam_tasks
     
     target_uid_str = str(target_uid)
@@ -2453,7 +2307,7 @@ def stop_spam(target_uid, requester_id, chat_id=None, user_message_id=None):
     return True
 
 def get_active_spam_targets():
-    """الحصول على قائمة أهداف السبام النشطة"""
+    """Get list of active spam targets"""
     if not _spam_tasks:
         return []
     
@@ -2474,7 +2328,7 @@ class HealthManager:
         self.client_status = {}
     
     def check_client_health(self, client):
-        """فحص صحة العميل"""
+        """Check client health"""
         client_id = client.client_id
         
         if not client.is_connected and not client.is_connecting:
@@ -2492,7 +2346,7 @@ class HealthManager:
                 self.client_status[client_id]['reconnect_count'] += 1
     
     def monitor_all_clients(self, clients):
-        """مراقبة جميع العملاء"""
+        """Monitor all clients"""
         while True:
             try:
                 for client in clients:
@@ -2532,7 +2386,7 @@ class FF_CLIENT(threading.Thread):
         logger.info(f"🕹️ Game bot #{self.client_id} ({self.name}) initialized, waiting for Telegram to be ready...")
 
     def safe_connect(self, func, *args, **kwargs):
-        """اتصال آمن مع إعادة المحاولة"""
+        """Safe connection with retry"""
         for attempt in range(3):
             try:
                 return func(*args, **kwargs)
@@ -2543,7 +2397,7 @@ class FF_CLIENT(threading.Thread):
         return None
 
     def reconnect(self):
-        """إعادة الاتصال التلقائي"""
+        """Automatic reconnection"""
         if self.reconnect_attempts >= self.max_reconnect_attempts:
             logger.error(f"Client #{self.client_id}: Max reconnection attempts reached")
             return False
@@ -2581,7 +2435,7 @@ class FF_CLIENT(threading.Thread):
         return False
 
     def create_ping_packet(self):
-        """إنشاء حزمة ping لفحص الصحة"""
+        """Create ping packet for health check"""
         try:
             fields = {
                 1: 100,
@@ -2609,7 +2463,7 @@ class FF_CLIENT(threading.Thread):
             return None
 
     def health_check_loop(self):
-        """حلقة فحص الصحة"""
+        """Health check loop"""
         while self.is_connected:
             try:
                 time.sleep(30)
@@ -2977,7 +2831,7 @@ class FF_CLIENT(threading.Thread):
         return bytes.fromhex(final_packet)
 
     def check_restart_needed(self):
-        """فحص ما إذا كان الحساب بحاجة إلى إعادة تشغيل (كل 3 دقائق)"""
+        """Check if account needs restart (every 3 minutes)"""
         current_time = time.time()
         if current_time - self.last_restart_time > ACCOUNT_RESTART_INTERVAL:
             logger.info(f"🔄 Client #{self.client_id}: Restarting connection after 3 minutes")
@@ -2985,7 +2839,7 @@ class FF_CLIENT(threading.Thread):
             self.restart_connection()
             
     def restart_connection(self):
-        """إعادة تشغيل اتصال اللعبة"""
+        """Restart game connection"""
         try:
             if self.socket_client:
                 self.socket_client.close()
@@ -3000,7 +2854,7 @@ class FF_CLIENT(threading.Thread):
 
     
     def execute_lag_command(self, team_code, duration=1, chat_id=None, user_message_id=None):
-        """تنفيذ أمر lag - نظام تعليق الفريق"""
+        """Execute lag command - team suspension system"""
         try:
             self.active_requests += 1
             active_requests_per_account[self.id] = active_requests_per_account.get(self.id, 0) + 1
@@ -3118,7 +2972,7 @@ class FF_CLIENT(threading.Thread):
 
     
     def execute_attack_command(self, team_code, chat_id=None, user_message_id=None):
-        """تنفيذ أمر الهجوم (البدء القسري)"""
+        """Execute attack command (force start)"""
         try:
             self.active_requests += 1
             active_requests_per_account[self.id] = active_requests_per_account.get(self.id, 0) + 1
@@ -3151,7 +3005,7 @@ class FF_CLIENT(threading.Thread):
 
     
     def execute_invite_command(self, player_id, squad_type, chat_id=None, user_message_id=None):
-        """تنفيذ أمر الدعوة في اللعبة"""
+        """Execute invite command in game"""
         try:
             self.active_requests += 1
             active_requests_per_account[self.id] = active_requests_per_account.get(self.id, 0) + 1
@@ -3219,7 +3073,7 @@ class FF_CLIENT(threading.Thread):
                         logger.error(f"❌ Client #{self.client_id}: Game connection closed by server")
                         break
                     
-                    # تخزين آخر بيانات مستلمة لنظام Ghost الجديد
+                    # Store last received data for Ghost system
                     self.last_received_data = data2
                     
                     update_connection_time()
@@ -3388,7 +3242,7 @@ class FF_CLIENT(threading.Thread):
             return False
     
     def run(self):
-        """تجاوز دالة run لبدء بوت اللعبة"""
+        """Override run function to start game bot"""
         global game_ready
         
         while not telegram_ready:
@@ -3407,7 +3261,7 @@ class CommandProcessor(threading.Thread):
         self.active_commands = 0
         
     def run(self):
-        """معالجة الطلبات من قائمة الانتظار"""
+        """Process requests from queue"""
         while True:
             try:
                 if self.active_commands < MAX_CONCURRENT_REQUESTS:
@@ -3430,7 +3284,7 @@ class CommandProcessor(threading.Thread):
                 time.sleep(1)
     
     def process_command(self, command):
-        """معالجة أمر واحد"""
+        """Process a single command"""
         global maintenance_mode
         
         try:
@@ -3533,13 +3387,13 @@ class CommandProcessor(threading.Thread):
                 
                 send_telegram_message(
                     f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 <b>SPAM STATUS (MASRY SYSTEM)</b>\n"
+                    f"📊 <b>SPAM STATUS (JAGWR SYSTEM)</b>\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
                     f"👁️ <b>Visit Spams:</b> {status['visit_count']}\n"
                     f"{visit_targets}\n\n"
                     f"👥 <b>Friend Spams:</b> {status['friend_count']}\n"
                     f"{friend_targets}\n\n"
-                    f"📁 <b>Masry Accounts:</b> {status['masry_accounts']}\n"
+                    f"📁 <b>JAGWAR Accounts:</b> {status['masry_accounts']}\n"
                     f"🎫 <b>Active JWT Tokens:</b> {status['jwt_tokens']}\n\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━",
                     chat_id=chat_id,
@@ -4209,7 +4063,7 @@ class CommandProcessor(threading.Thread):
             self.active_commands -= 1
 
 def add_command_to_queue(command_type, player_id=None, squad_type=None, team_code=None, duration=1, target_uid=None, chat_id=None, user_message_id=None, user_id=None, requester_name=None, days=None, target_group_id=None, ghost_name=None, target_id=None, target_name=None, count=None):
-    """إضافة أمر إلى قائمة انتظار التنفيذ"""
+    """Add a command to the execution queue"""
     command = {
         'type': command_type,
         'player_id': player_id,
@@ -4233,7 +4087,7 @@ def add_command_to_queue(command_type, player_id=None, squad_type=None, team_cod
     return True
 
 def execute_telegram_command(command, player_id=None, squad_type=None, team_code=None, duration=1, target_uid=None, chat_id=None, user_id=None, user_message_id=None, days=None, target_group_id=None, ghost_name=None, target_id=None, target_name=None, count=None):
-    """تنفيذ الأوامر من تيليجرام"""
+    """Execute commands from Telegram"""
     global maintenance_mode
     
     try:
@@ -4281,25 +4135,25 @@ def execute_telegram_command(command, player_id=None, squad_type=None, team_code
             else:
                 return "❌ Failed to add command"
 
-        if command == "vst" and target_uid:
+        if command == "visit" and target_uid:
             if add_command_to_queue('visit_spam', target_uid=target_uid, chat_id=chat_id, user_message_id=user_message_id, user_id=user_id):
                 return ""
             else:
                 return "❌ Failed to add command"
 
-        if command == "stopvst" and target_uid:
+        if command == "stop_visit" and target_uid:
             if add_command_to_queue('stop_visit_spam', target_uid=target_uid, chat_id=chat_id, user_message_id=user_message_id, user_id=user_id):
                 return ""
             else:
                 return "❌ Failed to add command"
 
-        if command == "fspam" and target_uid:
+        if command == "spam_req" and target_uid:
             if add_command_to_queue('friend_spam', target_uid=target_uid, chat_id=chat_id, user_message_id=user_message_id, user_id=user_id):
                 return ""
             else:
                 return "❌ Failed to add command"
 
-        if command == "stopfspam" and target_uid:
+        if command == "stop_req" and target_uid:
             if add_command_to_queue('stop_friend_spam', target_uid=target_uid, chat_id=chat_id, user_message_id=user_message_id, user_id=user_id):
                 return ""
             else:
@@ -4424,27 +4278,27 @@ def execute_telegram_command(command, player_id=None, squad_type=None, team_code
         return ""
 
 def show_start_menu(chat_id, user_id, user_message_id=None):
-    """قائمة الأوامر الرئيسية (للمستخدمين العاديين)"""
+    """Main commands menu (for regular users)"""
     user_id_str = str(user_id)
     
-    # إذا كان المستخدم هو الأدمن، أرسل القائمة الإدارية في الخاص فقط
+    # If user is admin, send admin menu in private chat only
     if user_id_str == ADMIN_ID:
         admin_menu = show_admin_menu(chat_id, user_id)
         if admin_menu:
-            # إذا كانت المحادثة خاصة، أرسل القائمة مباشرة
+            # If private chat, send menu directly
             if not str(chat_id).startswith('-'):
                 return admin_menu
-            # إذا كانت المجموعة، أرسل رسالة تفيد بإرسال القائمة إلى الخاص
+            # If group, send message that menu was sent to private
             else:
                 send_admin_message(
-                    "📩 تم إرسال قائمة الأوامر الإدارية إلى خاصك يا ملكي.\n\n"
+                    "📩 Admin command menu has been sent to your private chat, my king.\n\n"
                     "⟨ ⟨ ⟨ @JAGWAR_FF1 ⟩ ⟩ ⟩",
                     chat_id=chat_id,
                     reply_to_message_id=user_message_id
                 )
                 return None
     
-    # قائمة المستخدمين العاديين
+    # Regular user menu
     is_private = not str(chat_id).startswith('-')
     if is_private:
         return None
@@ -4467,10 +4321,10 @@ def show_start_menu(chat_id, user_id, user_message_id=None):
     menu += "├─ <code>/stop</code> (UID)\n"
     menu += "└─ <code>/spam_list</code>\n\n"
     menu += "👁️ <b>VISIT & FRIEND SPAM</b>\n"
-    menu += "├─ <code>/vst</code> (UID) - Visit spam\n"
-    menu += "├─ <code>/stopvst</code> (UID)\n"
-    menu += "├─ <code>/fspam</code> (UID) - Friend spam\n"
-    menu += "├─ <code>/stopfspam</code> (UID)\n"
+    menu += "├─ <code>/visit</code> (UID) - Visit spam\n"
+    menu += "├─ <code>/stop_visit</code> (UID)\n"
+    menu += "├─ <code>/spam_req</code> (UID) - Friend spam\n"
+    menu += "├─ <code>/stop_req</code> (UID)\n"
     menu += "└─ <code>/spamstatus</code>\n\n"
     menu += "🔍 <b>PLAYER INFO</b>\n"
     menu += "└─ <code>/info</code> (UID)\n\n"
@@ -4485,7 +4339,7 @@ def show_start_menu(chat_id, user_id, user_message_id=None):
     return menu
 
 def process_admin_command(command, parts, chat_id, user_id, user_message_id):
-    """معالجة أوامر الأدمن"""
+    """Process admin commands"""
     if str(user_id) != ADMIN_ID:
         if str(chat_id).startswith('-'):
             send_telegram_message("❌ Permission denied", chat_id=chat_id, reply_to_message_id=user_message_id)
@@ -4513,8 +4367,32 @@ def process_admin_command(command, parts, chat_id, user_id, user_message_id):
         groups_info = get_all_groups()
         send_telegram_message(groups_info, chat_id=chat_id, reply_to_message_id=user_message_id)
 
+def edit_telegram_message(chat_id, message_id, new_text, parse_mode="HTML", reply_markup=None):
+    """Edit an existing Telegram message"""
+    try:
+        signature = "\n\n────────────────────\n"
+        signature += "👑 Developer: JAGWAR KING"
+        
+        new_text_with_signature = new_text + signature
+        
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText"
+        data = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": new_text_with_signature,
+            "parse_mode": parse_mode
+        }
+        
+        if reply_markup:
+            data["reply_markup"] = json.dumps(reply_markup)
+        
+        response = requests.post(url, data=data, timeout=10)
+        return response.json()
+    except Exception as e:
+        logger.error(f"⚠️ Error editing Telegram message: {e}")
+
 def monitor_telegram():
-    """مراقبة رسائل تيليجرام بشكل مستمر مع دعم الأزرار"""
+    """Monitor Telegram messages continuously"""
     global telegram_ready, last_update_id
     
     telegram_ready = True
@@ -4532,42 +4410,7 @@ def monitor_telegram():
                     for update in data["result"]:
                         last_update_id = update["update_id"]
                         
-                        # ==================== معالجة callback_query (الأزرار) ====================
-                        if "callback_query" in update:
-                            callback = update["callback_query"]
-                            callback_data = callback.get("data", "")
-                            user_id = callback["from"]["id"]
-                            chat_id = callback["message"]["chat"]["id"]
-                            message_id = callback["message"]["message_id"]
-                            callback_id = callback["id"]
-                            
-                            # التحقق من الاشتراك
-                            if callback_data.startswith("check_sub_"):
-                                target_user_id = int(callback_data.split("_")[2])
-                                
-                                if user_id != target_user_id:
-                                    answer_callback_query(callback_id, "⚠️ هذا الزر ليس لك!", show_alert=True)
-                                    continue
-                                
-                                # التحقق من الاشتراك
-                                if check_force_subscribe(user_id, chat_id):
-                                    # تعديل الرسالة لتأكيد الاشتراك
-                                    success_message = (
-                                        "━━━━━━━━━━━━━━━━━━━━━━\n"
-                                        "✅ <b>تم التحقق بنجاح!</b>\n"
-                                        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                                        "يمكنك الآن استخدام البوت\n"
-                                        "أعد إرسال الأمر الذي تريده\n\n"
-                                        "⟨ ⟨ ⟨ @JAGWAR_FF1 ⟩ ⟩ ⟩\n"
-                                        "━━━━━━━━━━━━━━━━━━━━━━"
-                                    )
-                                    edit_telegram_message(chat_id, message_id, success_message)
-                                    answer_callback_query(callback_id, "✅ تم التحقق! يمكنك الآن استخدام البوت", show_alert=False)
-                                else:
-                                    answer_callback_query(callback_id, "❌ لم تشترك في القناة بعد! اشترك ثم اضغط تحقق", show_alert=True)
-                            continue
-                        
-                        # ==================== معالجة الرسائل العادية ====================
+                        # Handle normal messages
                         if "message" in update:
                             message = update["message"]
                             chat_id = message["chat"]["id"]
@@ -4577,7 +4420,7 @@ def monitor_telegram():
                             
                             if "text" in message:
                                 text = message["text"]
-                                process_telegram_message(text, chat_id, user_id, message_id, username)
+                                process_telegram_message(message, chat_id, user_id, message_id, username)
                                 
             time.sleep(1)
         except Exception as e:
@@ -4585,25 +4428,20 @@ def monitor_telegram():
             time.sleep(3)
 
 def process_telegram_message(message, chat_id, user_id, message_id, username=None):
-    """معالجة رسائل تيليجرام"""
+    """Process Telegram messages"""
     try:
-        raw_text = str(message).strip()
+        raw_text = str(message.get("text", "")).strip()
         m_text_lower = raw_text.lower()
         
         u_id = str(user_id)
         c_id = str(chat_id)
         a_id = str(ADMIN_ID)
         
-        # ==================== FORCE SUBSCRIBE CHECK ====================
-        # إذا كان المستخدم ليس أدمن ولم يشترك بعد
-        if u_id != a_id:
-            if not check_force_subscribe(user_id, chat_id):
-                send_force_sub_message(chat_id, username or f"user_{user_id}", user_id, message_id)
-                return  # منع تنفيذ أي أمر
+        # No force subscribe check - removed completely
         
         is_private = not c_id.startswith('-')
         
-        # معالجة أوامر البدء
+        # Handle start command
         if m_text_lower.startswith('/start'):
             menu = show_start_menu(chat_id, user_id, message_id)
             if menu:
@@ -4616,23 +4454,77 @@ def process_telegram_message(message, chat_id, user_id, message_id, username=Non
         parts = raw_text.split()
         command = parts[0][1:].lower()
         
-        # ==================== NEW ADMIN COMMANDS (تتطلب رد على رسالة) ====================
+        # ==================== NEW ADMIN COMMANDS (Require reply to message) ====================
         if command in ["ban", "kick", "mute", "unmute", "shadowban", "unshadowban"]:
-            # في بيئة حقيقية، يجب الحصول على الرد من التحديث
-            # لكن في هذا السياق، نرسل رسالة توضح الاستخدام
-            if u_id == a_id:
+            # Check admin permission
+            if u_id != a_id:
+                send_telegram_message("❌ You don't have permission to use this command.", chat_id=chat_id, reply_to_message_id=message_id)
+                return
+            
+            # Check if there's a reply to a message
+            if "reply_to_message" not in message or message["reply_to_message"] is None:
                 send_admin_message(
                     f"━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"⚠️ <b>USAGE</b>\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"Reply to a user's message:\n"
+                    f"❌ Please reply to a user's message:\n"
                     f"<code>/{command}</code>\n\n"
+                    f"Example: Reply to the user's message\n"
+                    f"then type <code>/{command}</code>\n\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━",
                     chat_id=chat_id,
                     reply_to_message_id=message_id
                 )
-            else:
-                send_telegram_message("❌ You don't have permission to use this command.", chat_id=chat_id, reply_to_message_id=message_id)
+                return
+            
+            # Get target user info from the replied message
+            target_user = message["reply_to_message"]["from"]
+            target_id = target_user["id"]
+            target_name = target_user.get("username", target_user.get("first_name", f"user_{target_id}"))
+            
+            # Prevent admin from punishing themselves
+            if command in ["ban", "kick", "mute", "shadowban"] and target_id == int(a_id):
+                send_admin_message(
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"❌ <b>ERROR</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"You cannot {command} yourself, my king.\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━",
+                    chat_id=chat_id,
+                    reply_to_message_id=message_id
+                )
+                return
+            
+            # Prevent punishing the bot itself
+            try:
+                bot_info = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe").json()
+                bot_id = bot_info.get("result", {}).get("id", 0)
+                if target_id == bot_id:
+                    send_admin_message(
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"❌ <b>ERROR</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        f"I cannot {command} myself.\n\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━",
+                        chat_id=chat_id,
+                        reply_to_message_id=message_id
+                    )
+                    return
+            except:
+                pass
+            
+            # Log the action
+            logger.info(f"Admin {user_id} executing {command} on user {target_id} ({target_name}) in chat {chat_id}")
+            
+            # Execute the command
+            execute_telegram_command(
+                command,
+                target_id=target_id,
+                target_name=target_name,
+                chat_id=chat_id,
+                user_id=user_id,
+                user_message_id=message_id
+            )
             return
         
         # ==================== PURGE COMMAND ====================
@@ -4679,16 +4571,16 @@ def process_telegram_message(message, chat_id, user_id, message_id, username=Non
             return
         
         # ==================== VISIT & FRIEND SPAM COMMANDS ====================
-        if command == "vst":
+        if command == "visit":
             if len(parts) < 2:
-                send_telegram_message("❌ Usage: /vst [UID]\nExample: /vst 13088065300", chat_id=chat_id, reply_to_message_id=message_id)
+                send_telegram_message("❌ Usage: /visit [UID]\nExample: /visit 13088065300", chat_id=chat_id, reply_to_message_id=message_id)
                 return
             target_uid = parts[1]
             if not target_uid.isdigit():
                 send_telegram_message("❌ UID must be numbers only", chat_id=chat_id, reply_to_message_id=message_id)
                 return
             execute_telegram_command(
-                "vst",
+                "visit",
                 target_uid=target_uid,
                 chat_id=chat_id,
                 user_id=user_id,
@@ -4696,16 +4588,16 @@ def process_telegram_message(message, chat_id, user_id, message_id, username=Non
             )
             return
         
-        if command == "stopvst":
+        if command == "stop_visit":
             if len(parts) < 2:
-                send_telegram_message("❌ Usage: /stopvst [UID]\nExample: /stopvst 13088065300", chat_id=chat_id, reply_to_message_id=message_id)
+                send_telegram_message("❌ Usage: /stop_visit [UID]\nExample: /stop_visit 13088065300", chat_id=chat_id, reply_to_message_id=message_id)
                 return
             target_uid = parts[1]
             if not target_uid.isdigit():
                 send_telegram_message("❌ UID must be numbers only", chat_id=chat_id, reply_to_message_id=message_id)
                 return
             execute_telegram_command(
-                "stopvst",
+                "stop_visit",
                 target_uid=target_uid,
                 chat_id=chat_id,
                 user_id=user_id,
@@ -4713,16 +4605,16 @@ def process_telegram_message(message, chat_id, user_id, message_id, username=Non
             )
             return
         
-        if command == "fspam":
+        if command == "spam_req":
             if len(parts) < 2:
-                send_telegram_message("❌ Usage: /fspam [UID]\nExample: /fspam 13088065300", chat_id=chat_id, reply_to_message_id=message_id)
+                send_telegram_message("❌ Usage: /spam_req [UID]\nExample: /spam_req 13088065300", chat_id=chat_id, reply_to_message_id=message_id)
                 return
             target_uid = parts[1]
             if not target_uid.isdigit():
                 send_telegram_message("❌ UID must be numbers only", chat_id=chat_id, reply_to_message_id=message_id)
                 return
             execute_telegram_command(
-                "fspam",
+                "spam_req",
                 target_uid=target_uid,
                 chat_id=chat_id,
                 user_id=user_id,
@@ -4730,16 +4622,16 @@ def process_telegram_message(message, chat_id, user_id, message_id, username=Non
             )
             return
         
-        if command == "stopfspam":
+        if command == "stop_req":
             if len(parts) < 2:
-                send_telegram_message("❌ Usage: /stopfspam [UID]\nExample: /stopfspam 13088065300", chat_id=chat_id, reply_to_message_id=message_id)
+                send_telegram_message("❌ Usage: /stop_req [UID]\nExample: /stop_req 13088065300", chat_id=chat_id, reply_to_message_id=message_id)
                 return
             target_uid = parts[1]
             if not target_uid.isdigit():
                 send_telegram_message("❌ UID must be numbers only", chat_id=chat_id, reply_to_message_id=message_id)
                 return
             execute_telegram_command(
-                "stopfspam",
+                "stop_req",
                 target_uid=target_uid,
                 chat_id=chat_id,
                 user_id=user_id,
@@ -4983,7 +4875,7 @@ def process_telegram_message(message, chat_id, user_id, message_id, username=Non
         logger.error(f"Error in process_telegram_message: {e}")
 
 def start_game_clients():
-    """بدء جميع حسابات اللعبة من ملف JSON"""
+    """Start all game accounts from JSON file"""
     accounts = load_accounts()
     if not accounts:
         logger.error("❌ No accounts found to start")
@@ -5005,7 +4897,7 @@ def start_game_clients():
     return clients
 
 def health_monitor():
-    """مراقبة صحة البوت وإعادة التشغيل إذا لزم الأمر"""
+    """Monitor bot health and restart if needed"""
     while True:
         try:
             check_connection_health()
@@ -5015,18 +4907,18 @@ def health_monitor():
             time.sleep(10)
 
 def start_jwt_updater():
-    """بدء تحديث JWT Token الدوري"""
+    """Start periodic JWT Token update"""
     time.sleep(5)
     update_jwt_periodically()
 
 def start_masry_jwt_updater():
-    """بدء تحديث JWT للحسابات في MaSrY.txt"""
+    """Start periodic JWT update for accounts in MaSrY.txt"""
     time.sleep(3)
     masry_update_jwt()
 
 # ==================== JOIN TEAMCODE FUNCTION ====================
 def join_teamcode(sock, team_code, key, iv):
-    """الانضمام إلى فريق عن طريق كود الفريق"""
+    """Join a team using team code"""
     try:
         fields = {
             1: 14,
@@ -5142,7 +5034,6 @@ if __name__ == "__main__":
         logger.info(f"❤️ Likes System: Active")
         logger.info(f"🔧 Maintenance Mode: {'ON' if maintenance_mode else 'OFF'}")
         logger.info(f"👑 Admin Commands: Active (ban, kick, mute, unmute, shadowban, unshadowban, purge, lockdown, unlock, server)")
-        logger.info(f"📢 Force Subscribe: Active (Channel: {FORCE_SUB_CHANNEL_ID})")
         logger.info(f"👻 Shadowban: Active ({len(shadowbanned_users)} users shadowbanned)")
         logger.info("=" * 50)
         
